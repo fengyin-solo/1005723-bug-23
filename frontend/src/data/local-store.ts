@@ -1,8 +1,10 @@
 import { SEED_ROWS } from './seed'
-import type { EntryRow } from './types'
+import type { EntryRow, RecalcEntry } from './types'
 
 // 本地持久化：数据放在 localStorage 里，刷新、关掉再打开都还在。
 const STORAGE_KEY = 'substation-protection:entries'
+// 二次回路判定合格后落到定值整定的待重算清单，独立存储，互不干扰。
+const RECALC_STORAGE_KEY = 'substation-protection:setting-recalc'
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T
@@ -56,4 +58,32 @@ export function resetRows(key: string): EntryRow[] {
 
 export function storageKey(): string {
   return STORAGE_KEY
+}
+
+// —— 定值整定待重算清单 ——
+
+function readRecalc(): RecalcEntry[] {
+  if (typeof window === 'undefined' || !window.localStorage) {
+    return []
+  }
+  const raw = window.localStorage.getItem(RECALC_STORAGE_KEY)
+  if (!raw) {
+    return []
+  }
+  try {
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? (parsed as RecalcEntry[]) : []
+  } catch {
+    return []
+  }
+}
+
+export function listRecalc(): RecalcEntry[] {
+  return readRecalc()
+}
+
+export function saveRecalc(entries: RecalcEntry[]): void {
+  if (typeof window !== 'undefined' && window.localStorage) {
+    window.localStorage.setItem(RECALC_STORAGE_KEY, JSON.stringify(entries))
+  }
 }

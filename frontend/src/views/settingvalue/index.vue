@@ -16,6 +16,10 @@
         <span class="stat-label">{{ item.label }}</span>
         <strong class="stat-value">{{ item.value }}</strong>
       </article>
+      <article class="stat-card">
+        <span class="stat-label">二次回路合格待重算</span>
+        <strong class="stat-value">{{ recalcRows.length }}</strong>
+      </article>
     </div>
 
     <p class="status-legend">
@@ -63,6 +67,33 @@
       </tbody>
     </table>
 
+    <section class="recalc-panel">
+      <header class="recalc-head">
+        <h3>二次回路检查合格 · 待重算清单</h3>
+        <button class="btn ghost" type="button" @click="loadRecalc">刷新清单</button>
+      </header>
+      <p class="page-desc">二次回路判定合格的回路会自动落入本清单，同一段回路只登记一次；完成定值重算后移出。</p>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th v-for="column in recalcColumns" :key="column">{{ column }}</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in recalcRows" :key="String(item.circuitId)">
+            <td v-for="column in recalcColumns" :key="column">{{ item[column] ?? '—' }}</td>
+            <td class="row-actions">
+              <button class="link" type="button" @click="finishRecalc(item.circuitId)">完成重算</button>
+            </td>
+          </tr>
+          <tr v-if="!recalcRows.length">
+            <td :colspan="recalcColumns.length + 1" class="empty-state">暂无待重算回路</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
     <footer class="page-foot">
       <span>共 {{ total }} 条定值整定记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
@@ -74,24 +105,29 @@
 import { computed, onMounted, ref } from 'vue'
 
 import {
+  completeRecalc,
   downloadEntries,
   listEntries,
+  listRecalcEntries,
   moduleMeta,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { EntryRow, RecalcEntry } from '@/data/types'
 
 const meta = moduleMeta('settingvalue')
 const columns = ["定值单号", "所属装置", "定值项目", "整定值", "计算依据", "整定人", "审核人", "定值状态"]
 const actions = ["提交整定", "审核定值", "作废定值"]
 const statuses = ["待整定", "整定中", "已审核", "已作废"]
 const stats = [{"label": "待整定定值单", "value": 0}, {"label": "整定中定值单", "value": 0}, {"label": "已作废定值单", "value": 0}]
+const recalcColumns = ["检查编号", "所属间隔", "回路类别", "绝缘电阻", "登记时间"]
 
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
 const filters = ref<Record<string, string>>({})
 const filterFields = columns.slice(0, 3)
+const recalcRows = ref<RecalcEntry[]>([])
+
 const statusSummary = computed(() =>
   statuses.map((status: string) => ({
     status,
@@ -122,12 +158,27 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
+function loadRecalc() {
+  recalcRows.value = listRecalcEntries()
+}
+
+function finishRecalc(circuitId: number) {
+  errorMessage.value = ''
+  const result = completeRecalc(circuitId)
+  if (!result.ok) {
+    errorMessage.value = result.message
+    return
+  }
+  loadRecalc()
+}
+
 function reload() {
   errorMessage.value = ''
   try {
     const payload = listEntries(meta.key, filters.value)
     rows.value = payload.items
     total.value = payload.total
+    loadRecalc()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '定值整定列表读取失败'
   }
@@ -135,3 +186,22 @@ function reload() {
 
 onMounted(reload)
 </script>
+
+<style scoped>
+.recalc-panel {
+  margin-top: 18px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.recalc-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.recalc-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+</style>
