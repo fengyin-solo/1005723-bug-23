@@ -17,7 +17,23 @@ export type ModuleMeta = {
   statuses: string[]
   actions: string[]
   actionTargets: Record<string, string>
+  // 状态机白名单：只允许从登记的状态发起对应动作；未登记的模块沿用原先的宽松流转。
+  actionAllowedFrom?: Record<string, string[]>
+  // 判定到目标状态后，需要把结论推送给其他模块的清单（如二次回路合格 -> 定值整定待重算）。
+  linkedRecalcOn?: string[]
   metrics: string[]
+}
+
+// 判定合格后落到「定值整定 - 待重算清单」的一条待办。
+export type RecalcItem = {
+  id: number
+  sourceKey: string
+  sourceId: number
+  refNo: string
+  bay: string
+  category: string
+  createdAt: string
+  handled: boolean
 }
 
 export type PageResult = {

@@ -67,6 +67,39 @@
       <span>共 {{ total }} 条定值整定记录</span>
       <span v-if="errorMessage" class="error-text">{{ errorMessage }}</span>
     </footer>
+
+    <section class="recalc-block">
+      <header class="recalc-head">
+        <h3>待重算清单</h3>
+        <span class="recalc-count">来自二次回路检查合格结论 · 待处理 {{ recalcRows.length }} 条</span>
+      </header>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>回路检查编号</th>
+            <th>所属间隔</th>
+            <th>回路类别</th>
+            <th>结论到达时间</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="item in recalcRows" :key="item.id">
+            <td>{{ item.refNo || '—' }}</td>
+            <td>{{ item.bay || '—' }}</td>
+            <td>{{ item.category || '—' }}</td>
+            <td>{{ item.createdAt }}</td>
+            <td class="row-actions">
+              <button class="link" type="button" @click="handleRecalc(item.id)">完成重算</button>
+            </td>
+          </tr>
+          <tr v-if="!recalcRows.length">
+            <td colspan="5" class="empty-state">暂无因回路检查合格触发的待重算条目</td>
+          </tr>
+        </tbody>
+      </table>
+      <p v-if="recalcMessage" class="recalc-msg" :class="{ 'error-text': !recalcOk }">{{ recalcMessage }}</p>
+    </section>
   </section>
 </template>
 
@@ -76,10 +109,12 @@ import { computed, onMounted, ref } from 'vue'
 import {
   downloadEntries,
   listEntries,
+  listPendingRecalc,
   moduleMeta,
+  resolveRecalc,
   runAction as applyAction,
 } from '@/api/local-service'
-import type { EntryRow } from '@/data/types'
+import type { EntryRow, RecalcItem } from '@/data/types'
 
 const meta = moduleMeta('settingvalue')
 const columns = ["定值单号", "所属装置", "定值项目", "整定值", "计算依据", "整定人", "审核人", "定值状态"]
@@ -122,6 +157,24 @@ function runAction(action: string, row: EntryRow) {
   reload()
 }
 
+const recalcRows = ref<RecalcItem[]>([])
+const recalcMessage = ref('')
+const recalcOk = ref(false)
+
+function loadRecalc() {
+  recalcRows.value = listPendingRecalc()
+}
+
+function handleRecalc(id: number) {
+  recalcMessage.value = ''
+  const result = resolveRecalc(id)
+  recalcOk.value = result.ok
+  recalcMessage.value = result.message
+  if (result.ok) {
+    loadRecalc()
+  }
+}
+
 function reload() {
   errorMessage.value = ''
   try {
@@ -133,5 +186,27 @@ function reload() {
   }
 }
 
-onMounted(reload)
+onMounted(() => {
+  reload()
+  loadRecalc()
+})
 </script>
+
+<style scoped>
+.recalc-block {
+  margin-top: 20px;
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.recalc-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.recalc-head h3 { margin: 0; font-size: 15px; }
+.recalc-count { font-size: 12px; color: var(--muted); }
+.recalc-msg { margin: 8px 0 0; font-size: 12px; color: #157347; }
+</style>
